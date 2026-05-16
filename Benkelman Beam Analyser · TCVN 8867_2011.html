@@ -1,0 +1,1268 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benkelman Beam Analyser · TCVN 8867:2011</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" onerror="window._papafailed=true"></script>
+<script>
+// Inline CSV parser — used if PapaParse CDN fails to load
+function _parseCSVFallback(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
+  if (!lines.length) return { data: [] };
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  const data = [];
+  for (let i = 1; i < lines.length; i++) {
+    // handle quoted fields with commas
+    const cols = [];
+    let cur = '', inQ = false;
+    for (const ch of lines[i]) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    cols.push(cur.trim());
+    if (cols.length < 2) continue;
+    const obj = {};
+    headers.forEach((h, j) => obj[h] = (cols[j] || '').replace(/^"|"$/g,''));
+    data.push(obj);
+  }
+  return { data };
+}
+function _doParse(text) {
+  if (typeof Papa !== 'undefined') {
+    return Papa.parse(text.trim(), { header: true, skipEmptyLines: true });
+  }
+  return _parseCSVFallback(text.trim());
+}
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --navy: #0B1D3A;
+    --navy2: #122347;
+    --crimson: #C0392B;
+    --gold: #D4A017;
+    --gold2: #F0C040;
+    --teal: #1ABC9C;
+    --slate: #8FA3BC;
+    --light: #EDF2F7;
+    --white: #FAFCFF;
+    --panel: #132040;
+    --border: rgba(143,163,188,0.18);
+    --radius: 10px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --display: 'Syne', sans-serif;
+    --good: #27AE60;
+    --warn: #E67E22;
+    --bad: #C0392B;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: var(--navy);
+    color: var(--light);
+    font-family: var(--sans);
+    font-size: 14px;
+    height: 100vh;
+    display: flex; flex-direction: column;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212,160,23,0.08) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(143,163,188,0.04) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(143,163,188,0.04) 40px);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212,160,23,0.08) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(143,163,188,0.04) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(143,163,188,0.04) 40px);
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; gap: 18px;
+    padding: 12px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(11,29,58,0.95);
+    backdrop-filter: blur(8px);
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .logo-mark {
+    width: 44px; height: 44px; flex-shrink: 0;
+    background: var(--crimson);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--display); font-weight: 800; font-size: 14px; color: #fff;
+  }
+  .header-text h1 { font-family: var(--display); font-size: 20px; font-weight: 800; color: var(--white); letter-spacing: -0.5px; }
+  .header-text p { font-size: 11px; color: var(--slate); font-family: var(--mono); margin-top: 2px; }
+  .badge {
+    margin-left: auto;
+    background: rgba(212,160,23,0.15);
+    border: 1px solid rgba(212,160,23,0.4);
+    color: var(--gold2);
+    font-family: var(--mono); font-size: 11px;
+    padding: 4px 12px; border-radius: 20px;
+  }
+
+  /* ── LAYOUT ── */
+  .main {
+    display: grid; grid-template-columns: 320px 1fr; gap: 0;
+    flex: 1; min-height: 0; overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 16px;
+    overflow-y: auto; height: 100%;
+  }
+  .section-label {
+    font-family: var(--display); font-size: 11px; font-weight: 700;
+    color: var(--gold); letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(212,160,23,0.2); }
+
+  /* params */
+  .param-grid { display: grid; gap: 12px; }
+  .param-row { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 11px; color: var(--slate); font-family: var(--mono); }
+  select, input[type=number], input[type=text] {
+    background: rgba(11,29,58,0.8);
+    border: 1px solid var(--border);
+    color: var(--light);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: var(--mono); font-size: 12px;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--gold); }
+  select option { background: var(--navy2); }
+
+  /* formula box */
+  .formula-box {
+    background: rgba(11,29,58,0.6);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: var(--radius);
+    padding: 12px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--slate);
+    line-height: 1.8;
+  }
+  .formula-box .f-title { color: var(--gold); font-weight: 500; margin-bottom: 6px; }
+  .formula-box .f-eq { color: var(--white); font-size: 12px; }
+
+  /* upload zone */
+  .upload-zone {
+    border: 2px dashed rgba(212,160,23,0.3);
+    border-radius: var(--radius);
+    padding: 20px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--gold); background: rgba(212,160,23,0.05); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone .up-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 11px; color: var(--slate); }
+  .upload-zone .file-name { color: var(--gold2); font-family: var(--mono); font-size: 11px; margin-top: 6px; }
+
+  /* buttons */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 18px; border-radius: 8px;
+    font-family: var(--display); font-weight: 700; font-size: 13px;
+    cursor: pointer; border: none; transition: all 0.2s; width: 100%;
+  }
+  .btn-primary { background: var(--crimson); color: #fff; }
+  .btn-primary:hover { background: #a93226; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(192,57,43,0.4); }
+  .btn-secondary {
+    background: transparent; color: var(--slate);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-export { background: rgba(26,188,156,0.15); color: var(--teal); border: 1px solid rgba(26,188,156,0.3); }
+  .btn-export:hover { background: rgba(26,188,156,0.25); }
+
+  /* ── MAIN CONTENT ── */
+  .content { display: flex; flex-direction: column; overflow: hidden; height: 100%; }
+
+  /* tabs */
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    background: rgba(11,29,58,0.6); padding: 0 24px;
+  }
+  .tab {
+    padding: 14px 20px; font-family: var(--display); font-weight: 600;
+    font-size: 13px; color: var(--slate); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .tab:hover:not(.active) { color: var(--light); }
+
+  .tab-content { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; min-height: 0; }
+  .tab-content.active { display: flex; flex-direction: column; }
+
+  /* ── STATS ROW ── */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; flex-shrink: 0;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .stat-card.navy::before { background: var(--slate); }
+  .stat-card.gold::before { background: var(--gold); }
+  .stat-card.teal::before { background: var(--teal); }
+  .stat-card.red::before { background: var(--crimson); }
+  .stat-card .s-label { font-size: 10px; color: var(--slate); font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card .s-val { font-family: var(--display); font-size: 26px; font-weight: 800; color: var(--white); margin-top: 4px; }
+  .stat-card .s-unit { font-family: var(--mono); font-size: 11px; color: var(--slate); }
+
+  /* ── CHART ── */
+  .chart-wrapper {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 14px;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .chart-wrapper.fill { flex: 1; min-height: 0; }
+  .chart-wrapper.fill canvas { flex: 1; min-height: 0; }
+  .canvas-wrap { flex: 1; min-height: 0; position: relative; }
+  .canvas-wrap canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+  .chart-title { font-family: var(--display); font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 12px; flex-shrink: 0; }
+  canvas { width: 100% !important; height: 100% !important; display: block; }
+
+  /* ── TABLE ── */
+  .table-wrapper {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .table-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+  }
+  .table-header h3 { font-family: var(--display); font-size: 13px; font-weight: 700; color: var(--white); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: rgba(11,29,58,0.8);
+    padding: 9px 12px; text-align: left;
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    color: var(--slate); text-transform: uppercase; letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid rgba(143,163,188,0.07); transition: background 0.15s; }
+  tbody tr:hover { background: rgba(212,160,23,0.04); }
+  tbody td { padding: 8px 12px; font-family: var(--mono); font-size: 12px; color: var(--light); }
+  tbody td.muted { color: var(--slate); }
+
+  .pill {
+    display: inline-block; padding: 2px 9px; border-radius: 12px;
+    font-size: 10px; font-family: var(--mono); font-weight: 500;
+  }
+  .pill.good { background: rgba(39,174,96,0.15); color: var(--good); border: 1px solid rgba(39,174,96,0.3); }
+  .pill.warn { background: rgba(230,126,34,0.15); color: var(--warn); border: 1px solid rgba(230,126,34,0.3); }
+  .pill.bad  { background: rgba(192,57,43,0.15);  color: var(--bad);  border: 1px solid rgba(192,57,43,0.3); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 60vh; gap: 16px; text-align: center;
+  }
+  .empty-state .icon { font-size: 56px; opacity: 0.3; }
+  .empty-state h2 { font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--slate); }
+  .empty-state p { font-size: 13px; color: var(--slate); max-width: 340px; line-height: 1.7; }
+
+  /* ── SEGMENT TABLE ── */
+  .seg-bar-container { display: flex; align-items: center; gap: 8px; }
+  .seg-bar { height: 6px; border-radius: 3px; min-width: 4px; }
+
+  /* toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--navy2); border: 1px solid var(--gold);
+    color: var(--gold); font-family: var(--mono); font-size: 12px;
+    padding: 10px 18px; border-radius: 8px;
+    opacity: 0; transform: translateY(10px);
+    transition: all 0.3s; z-index: 999; pointer-events: none;
+    max-width: 380px; line-height: 1.5;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.warn { border-color: var(--crimson); color: #ff8a80; background: rgba(192,57,43,0.15); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(143,163,188,0.2); border-radius: 3px; }
+
+  /* responsive hint */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { height: auto; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .info-box {
+    background: rgba(26,188,156,0.07);
+    border: 1px solid rgba(26,188,156,0.2);
+    border-radius: 8px; padding: 12px; font-size: 11px;
+    color: var(--slate); line-height: 1.7;
+  }
+  .info-box strong { color: var(--teal); }
+
+  .two-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; height: 220px; }
+  @media (max-width: 1100px) { .two-charts { grid-template-columns: 1fr; height: auto; } }
+  #overview-content .stats-row { flex-shrink: 0; margin-bottom: 0; }
+  #overview-content .chart-wrapper:last-child { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">BB</div>
+  <div class="header-text">
+    <h1>Benkelman Beam Pavement Analyser</h1>
+    <p>TCVN 8867:2011 · Flexible Pavement Elastic Modulus · ISO 19148 LRS Output</p>
+  </div>
+  <span class="badge">MPWT / GDPW</span>
+</header>
+
+<div class="main">
+
+<!-- ══ SIDEBAR ══ -->
+<aside>
+
+  <div>
+    <div class="section-label">Input Data</div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="csvFile" accept=".csv,.txt">
+      <div class="up-icon">📁</div>
+      <p>Drop CSV or click to browse</p>
+      <p style="margin-top:4px;font-size:10px;color:#6b8099">Route_ID · Point_ID · Chainage · Deflection_Li_mm</p>
+      <div class="file-name" id="fileName">No file selected</div>
+    </div>
+    <button class="btn btn-secondary" style="margin-top:6px;font-size:11px;" onclick="downloadTemplate()">⬇ Download CSV Template</button>
+    <button class="btn btn-secondary" style="margin-top:4px;font-size:11px;" onclick="loadSample()">⬇ Load Sample (NR10 · 65 pts)</button>
+  </div>
+
+  <div>
+    <div class="section-label">Parameters</div>
+    <div class="param-grid">
+      <div class="param-row">
+        <label>Road Class (K factor)</label>
+        <select id="roadClass">
+          <option value="2.0">Class I / Expressway (K = 2.0)</option>
+          <option value="1.64" selected>Class II / Urban Arterial (K = 1.64)</option>
+          <option value="1.3">Class III (K = 1.3)</option>
+          <option value="1.04">Class IV–VI / Local (K = 1.04)</option>
+        </select>
+      </div>
+      <div class="param-row">
+        <label>Season Correction Km</label>
+        <input type="number" id="Km" value="1.0" step="0.01" min="0.5" max="2.0">
+      </div>
+      <div class="param-row">
+        <label>Temp. Correction Kt</label>
+        <input type="number" id="Kt" value="1.0" step="0.01" min="0.5" max="2.0">
+      </div>
+      <div class="param-row">
+        <label>Load Correction Kq</label>
+        <input type="number" id="Kq" value="1.0" step="0.01" min="0.5" max="2.0">
+      </div>
+      <div class="param-row">
+        <label>Segment Length (m) — CDS method</label>
+        <input type="number" id="segLen" value="1000" step="100" min="100" max="5000">
+      </div>
+      <div class="param-row">
+        <label>Outlier Test Level α</label>
+        <select id="alpha">
+          <option value="0.05">α = 0.05 (95% confidence)</option>
+          <option value="0.10" selected>α = 0.10 (90% confidence)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="formula-box">
+      <div class="f-title">TCVN 8867:2011 · §6 Formulae</div>
+      <div class="f-eq">Litt = (1/Kq)·Km·Kt·Li</div>
+      <div style="margin-top:4px;">L.seg = L.avg + K·δ</div>
+      <div style="margin-top:4px;">Mr = 0.71·p·D·(1−μ²)/L.seg</div>
+      <div style="margin-top:6px;color:var(--gold);font-size:10px;">p=0.6 MPa · D=33 cm · μ=0.3</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Actions</div>
+    <button class="btn btn-primary" onclick="runAnalysis()">▶ Run Analysis</button>
+    <div style="margin-top:10px; display:flex; gap:8px;">
+      <button class="btn btn-export" onclick="exportLRS()" style="flex:1">⬇ LRS CSV</button>
+      <button class="btn btn-export" onclick="exportReport()" style="flex:1">⬇ Report</button>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>Segmentation:</strong> Cumulative Difference Sums (Annex F) applied to raw corrected deflections. Segments &lt;500 m merged with adjacent. Outliers removed per Annex E before L.seg / Mr computation.
+  </div>
+
+</aside>
+
+<!-- ══ CONTENT ══ -->
+<div class="content">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">Overview</div>
+    <div class="tab" onclick="switchTab('chart')">Deflection Profile</div>
+    <div class="tab" onclick="switchTab('segments')">Segments & Mr</div>
+    <div class="tab" onclick="switchTab('raw')">Raw Data</div>
+    <div class="tab" onclick="switchTab('lrs')">LRS Event Table</div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tab-content active" id="tab-overview">
+    <div id="overview-empty" class="empty-state">
+      <div class="icon">🛣️</div>
+      <h2>No Data Loaded</h2>
+      <p>Upload a Benkelman survey CSV or load the sample dataset, then click <strong>Run Analysis</strong>.</p>
+    </div>
+    <div id="overview-content" style="display:none;flex-direction:column;flex:1;min-height:0;gap:14px">
+      <div class="stats-row" id="statsRow"></div>
+      <div class="two-charts" style="flex-shrink:0">
+        <div class="chart-wrapper" style="flex-direction:column;display:flex">
+          <div class="chart-title">Corrected Deflection Distribution</div>
+          <div class="canvas-wrap"><canvas id="histChart"></canvas></div>
+        </div>
+        <div class="chart-wrapper" style="flex-direction:column;display:flex">
+          <div class="chart-title">Mr Distribution by Segment</div>
+          <div class="canvas-wrap"><canvas id="mrBarChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-wrapper fill">
+        <div class="chart-title">Cumulative Difference Sums (Zx) — Segmentation Plot</div>
+        <div class="canvas-wrap"><canvas id="cdsChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="tab-content" id="tab-chart">
+    <div class="chart-wrapper fill">
+      <div class="chart-title">Elastic Deflection Profile (Litt corrected, mm)</div>
+      <div class="canvas-wrap"><canvas id="deflChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- SEGMENTS -->
+  <div class="tab-content" id="tab-segments">
+    <div class="table-wrapper">
+      <div class="table-header">
+        <h3>Homogeneous Segments · Structural Capacity</h3>
+        <span id="segCount" style="font-family:var(--mono);font-size:11px;color:var(--slate)"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="segTable">
+          <thead><tr>
+            <th>#</th><th>From</th><th>To</th><th>Length (m)</th><th>n pts</th>
+            <th>L.avg (mm)</th><th>δ (mm)</th><th>L.seg (mm)</th>
+            <th>Mr (MPa)</th><th>Rating</th>
+          </tr></thead>
+          <tbody id="segBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- RAW -->
+  <div class="tab-content" id="tab-raw">
+    <div class="table-wrapper">
+      <div class="table-header">
+        <h3>Survey Points · Corrected Values</h3>
+        <span id="rawCount" style="font-family:var(--mono);font-size:11px;color:var(--slate)"></span>
+      </div>
+      <div style="overflow-x:auto;max-height:70vh">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Chainage</th><th>Li raw (mm)</th>
+            <th>Litt corr (mm)</th><th>Outlier</th><th>Segment</th>
+          </tr></thead>
+          <tbody id="rawBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- LRS -->
+  <div class="tab-content" id="tab-lrs">
+    <div class="table-wrapper">
+      <div class="table-header">
+        <h3>ISO 19148 Linear Referencing System Event Table</h3>
+        <button class="btn btn-export" style="width:auto;padding:6px 14px;font-size:12px;" onclick="exportLRS()">⬇ Export CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Route_ID</th><th>From_Measure (m)</th><th>To_Measure (m)</th>
+            <th>Point_Count</th><th>Mean_L.avg (mm)</th>
+            <th>L.seg (mm)</th><th>Mr (MPa)</th><th>Rating</th>
+          </tr></thead>
+          <tbody id="lrsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .content -->
+</div><!-- .main -->
+
+<div id="toast"></div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+//  SAMPLE DATA (embedded)
+// ══════════════════════════════════════════════════════
+const SAMPLE_CSV = `Route_ID,Point_ID,Chainage,Deflection_Li_mm
+NR10,1,Km 0+000,0.45
+NR10,2,Km 1+000,0.52
+NR10,3,Km 2+000,0.48
+NR10,4,Km 3+000,0.55
+NR10,5,Km 4+000,0.41
+NR10,6,Km 5+000,0.59
+NR10,7,Km 6+000,0.47
+NR10,8,Km 7+000,0.50
+NR10,9,Km 8+000,0.53
+NR10,10,Km 9+000,0.46
+NR10,11,Km 10+000,0.61
+NR10,12,Km 11+000,0.49
+NR10,13,Km 12+000,0.52
+NR10,14,Km 13+000,0.44
+NR10,15,Km 14+000,0.58
+NR10,16,Km 15+000,0.47
+NR10,17,Km 16+000,0.51
+NR10,18,Km 17+000,0.54
+NR10,19,Km 18+000,0.48
+NR10,20,Km 19+000,0.55
+NR10,21,Km 20+000,0.42
+NR10,22,Km 21+000,0.57
+NR10,23,Km 22+000,0.50
+NR10,24,Km 23+000,0.45
+NR10,25,Km 24+000,0.53
+NR10,26,Km 25+000,0.49
+NR10,27,Km 26+000,0.82
+NR10,28,Km 27+000,0.88
+NR10,29,Km 28+000,0.79
+NR10,30,Km 29+000,0.91
+NR10,31,Km 30+000,0.85
+NR10,32,Km 31+000,0.77
+NR10,33,Km 32+000,0.89
+NR10,34,Km 33+000,0.83
+NR10,35,Km 34+000,0.92
+NR10,36,Km 35+000,0.81
+NR10,37,Km 36+000,0.86
+NR10,38,Km 37+000,0.78
+NR10,39,Km 38+000,0.90
+NR10,40,Km 39+000,0.84
+NR10,41,Km 40+000,0.87
+NR10,42,Km 41+000,0.76
+NR10,43,Km 42+000,0.93
+NR10,44,Km 43+000,0.80
+NR10,45,Km 44+000,0.85
+NR10,46,Km 45+000,0.88
+NR10,47,Km 46+000,1.45
+NR10,48,Km 47+000,1.52
+NR10,49,Km 48+000,1.38
+NR10,50,Km 49+000,1.61
+NR10,51,Km 50+000,1.49
+NR10,52,Km 51+000,1.72
+NR10,53,Km 52+000,1.55
+NR10,54,Km 53+000,1.42
+NR10,55,Km 54+000,1.68
+NR10,56,Km 55+000,1.51
+NR10,57,Km 56+000,1.47
+NR10,58,Km 57+000,1.59
+NR10,59,Km 58+000,1.44
+NR10,60,Km 59+000,1.65
+NR10,61,Km 60+000,1.50
+NR10,62,Km 61+000,0.35
+NR10,63,Km 62+000,0.32
+NR10,64,Km 63+000,0.38
+NR10,65,Km 64+000,0.31`;
+
+// ══════════════════════════════════════════════════════
+//  GLOBALS
+// ══════════════════════════════════════════════════════
+let rawRows = [];    // {routeId, ptId, chainage, chainageM, Li}
+let results  = [];   // {Li, Litt, outlier, segIdx}
+let segments = [];   // {from, to, n, Lavg, Lseg, Mr, routeId}
+let charts   = {};
+
+// ══════════════════════════════════════════════════════
+//  PARSING HELPERS
+// ══════════════════════════════════════════════════════
+function parseChainage(s) {
+  if (!s) return NaN;
+  s = String(s).trim();
+  // "Km 46+000" → 46000, "46+000" → 46000, plain number
+  const m1 = s.match(/(\d+)[+](\d+)/);
+  if (m1) return parseInt(m1[1]) * 1000 + parseInt(m1[2]);
+  const m2 = s.match(/[\d.]+/);
+  if (m2) return parseFloat(m2[0]);
+  return NaN;
+}
+
+function parseCSV(text) {
+  // Strip BOM if present
+  text = text.replace(/^\uFEFF/, '').trim();
+  if (!text) { toast('⚠ File is empty'); return []; }
+
+  let r;
+  try { r = _doParse(text); }
+  catch(e) { toast('⚠ CSV parse error: ' + e.message); return []; }
+
+  if (!r.data || !r.data.length) { toast('⚠ No data rows found — check file format'); return []; }
+
+  const rows = [];
+  let skipped = 0;
+  r.data.forEach((row, i) => {
+    // Normalise keys: trim, lowercase, collapse spaces→underscore
+    const obj = {};
+    Object.keys(row).forEach(k => {
+      obj[k.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')] = 
+        typeof row[k] === 'string' ? row[k].trim() : row[k];
+    });
+
+    const routeId  = obj['route_id'] || obj['routeid'] || obj['route'] || 'ROUTE';
+    const ptId     = obj['point_id'] || obj['pointid'] || obj['point'] || (i+1);
+    const chainRaw = obj['chainage'] || obj['station'] || obj['km'] || obj['chainage_km'] || '';
+    const liRaw    = obj['deflection_li_mm'] || obj['deflection_limm'] || obj['li_mm'] || 
+                     obj['deflection'] || obj['li'] || obj['deflection_mm'] || '';
+
+    const chainM = parseChainage(chainRaw);
+    const Li     = parseFloat(liRaw);
+
+    if (!isNaN(chainM) && !isNaN(Li) && Li > 0) {
+      rows.push({ routeId, ptId, chainage: chainRaw || String(chainM), chainageM: chainM, Li });
+    } else {
+      skipped++;
+    }
+  });
+
+  rows.sort((a, b) => a.chainageM - b.chainageM);
+
+  if (!rows.length) {
+    toast('⚠ 0 valid rows — expected columns: Route_ID, Point_ID, Chainage, Deflection_Li_mm');
+  } else if (skipped > 0) {
+    toast('Loaded ' + rows.length + ' pts (' + skipped + ' rows skipped — missing chainage or deflection)');
+  }
+  return rows;
+}
+
+// ══════════════════════════════════════════════════════
+//  ANNEX E – outlier exclusion (simplified Lk statistic)
+// ══════════════════════════════════════════════════════
+// C tables for α=0.10 and α=0.05, k=1..4, n=3..50
+const C_TABLE = {
+  '0.10': {
+    3:[0.011],4:[0.098,0.003],5:[0.200,0.038],6:[0.280,0.091,0.020],
+    7:[0.348,0.148,0.056],8:[0.404,0.200,0.095,0.038],
+    9:[0.448,0.248,0.134,0.068],10:[0.490,0.287,0.170,0.098,0.051],
+    11:[0.526,0.326,0.208,0.128,0.074],12:[0.555,0.361,0.240,0.159,0.103,0.062],
+    15:[0.611,0.436,0.322,0.236,0.172,0.124,0.086],
+    20:[0.688,0.530,0.420,0.339,0.273,0.220,0.176,0.140,0.110,0.085],
+    25:[0.732,0.588,0.489,0.412,0.350,0.296,0.251,0.213,0.180,0.152],
+    30:[0.766,0.637,0.523,0.472,0.411,0.359,0.316,0.276,0.240,0.210],
+    50:[0.840,0.744,0.673,0.614,0.562,0.518,0.477,0.442,0.410,0.380]
+  },
+  '0.05': {
+    3:[0.003],4:[0.051,0.001],5:[0.125,0.018],6:[0.203,0.055,0.010],
+    7:[0.273,0.106,0.032],8:[0.326,0.146,0.064,0.022],
+    9:[0.372,0.194,0.099,0.045],10:[0.418,0.233,0.129,0.070,0.034],
+    11:[0.454,0.270,0.162,0.098,0.054],12:[0.489,0.305,0.196,0.125,0.076,0.042],
+    15:[0.556,0.387,0.276,0.197,0.140,0.097,0.066],
+    20:[0.639,0.484,0.377,0.299,0.238,0.188,0.150,0.115,0.088,0.066],
+    25:[0.696,0.550,0.450,0.374,0.312,0.262,0.222,0.184,0.154,0.126],
+    30:[0.730,0.599,0.506,0.434,0.376,0.327,0.283,0.245,0.212,0.183],
+    50:[0.820,0.722,0.646,0.588,0.535,0.490,0.450,0.414,0.383,0.356]
+  }
+};
+
+function getC(alpha, n, k) {
+  const tbl  = C_TABLE[String(alpha)];
+  if (!tbl) return 1;
+  const keys = Object.keys(tbl).map(Number).sort((a,b)=>a-b);
+  // find nearest n
+  let nKey = keys[0];
+  for (const kk of keys) { if (kk <= n) nKey = kk; }
+  const row = tbl[nKey];
+  if (!row) return 1;
+  const ki = Math.min(k - 1, row.length - 1);
+  return ki >= 0 ? row[ki] : 1;
+}
+
+function removeOutliers(vals, alpha) {
+  if (vals.length < 4) return { clean: vals, outlierMask: vals.map(() => false) };
+
+  let arr    = [...vals];
+  let n      = arr.length;
+  const mask = vals.map(() => false);
+  const idxs = vals.map((_, i) => i); // original indices sorted by val
+
+  const sorted = [...idxs].sort((a, b) => vals[a] - vals[b]);
+
+  // try removing up to k_max outliers from top
+  const k_max = Math.min(4, Math.floor(n / 4));
+
+  for (let k1 = 1; k1 <= k_max; k1++) {
+    const topK = sorted.slice(n - k1);
+    const rest  = sorted.slice(0, n - k1);
+    const meanR = rest.reduce((s, i) => s + vals[i], 0) / rest.length;
+    const meanA = sorted.reduce((s, i) => s + vals[i], 0) / n;
+    const numR  = rest.reduce((s, i) => s + (vals[i] - meanR) ** 2, 0);
+    const denA  = sorted.reduce((s, i) => s + (vals[i] - meanA) ** 2, 0);
+    if (denA === 0) continue;
+    const Lk = numR / denA;
+    const C  = getC(alpha, n, k1);
+    if (Lk < C) {
+      topK.forEach(i => mask[i] = true);
+      break;
+    }
+  }
+  return { clean: vals.filter((_, i) => !mask[i]), outlierMask: mask };
+}
+
+// ══════════════════════════════════════════════════════
+//  CDS SEGMENTATION (Annex F)
+// ══════════════════════════════════════════════════════
+function cdsSegment(corrected, chainageM, minSegLen) {
+  const n = corrected.length;
+  if (n < 2) return [{ start: 0, end: n - 1 }];
+
+  // compute Zx
+  const dists = [];
+  for (let i = 0; i < n - 1; i++) {
+    dists.push(chainageM[i + 1] - chainageM[i]);
+  }
+  const totalLen = chainageM[n - 1] - chainageM[0];
+  let   Si_acc   = 0;
+  const Zx       = [0];
+  const Si_all   = [];
+
+  for (let i = 1; i < n; i++) {
+    const dx  = chainageM[i] - chainageM[i - 1];
+    const ltb = (corrected[i - 1] + corrected[i]) / 2;
+    const Si  = ltb * dx;
+    Si_acc   += Si;
+    Si_all.push(Si);
+    const phi = Si_acc / (i === n - 1 ? totalLen : (chainageM[i] - chainageM[0]));
+    // approximate: Zx[i] = sum(Si) - phi * sum(dx)
+    Zx.push(Si_acc - (Si_acc / (totalLen || 1)) * (chainageM[i] - chainageM[0]));
+  }
+
+  // find sign changes in slope of Zx → segment boundaries
+  const boundaries = [0];
+  for (let i = 1; i < Zx.length - 1; i++) {
+    const dz1 = Zx[i]     - Zx[i - 1];
+    const dz2 = Zx[i + 1] - Zx[i];
+    if (dz1 * dz2 < 0) boundaries.push(i);
+  }
+  boundaries.push(n - 1);
+
+  // merge segments < minSegLen with neighbor
+  const segs = [];
+  for (let b = 0; b < boundaries.length - 1; b++) {
+    segs.push({ start: boundaries[b], end: boundaries[b + 1] });
+  }
+
+  // merge short ones
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let s = 0; s < segs.length; s++) {
+      const len = chainageM[segs[s].end] - chainageM[segs[s].start];
+      if (len < minSegLen && segs.length > 1) {
+        if (s === 0) {
+          segs[s + 1].start = segs[s].start;
+          segs.splice(s, 1);
+        } else {
+          segs[s - 1].end = segs[s].end;
+          segs.splice(s, 1);
+        }
+        changed = true;
+        break;
+      }
+    }
+  }
+  return segs;
+}
+
+// ══════════════════════════════════════════════════════
+//  MODULUS §6.2.4
+// ══════════════════════════════════════════════════════
+function calcMr(Lseg_mm) {
+  // Mr = 0.71 * p * D * (1 - mu^2) / Lseg
+  // p=0.6 MPa, D=33 cm, mu=0.3, Lseg in mm → convert to cm for dimensionless
+  // standard formula: Mr [MPa] = 0.71 * p[MPa] * D[cm] * (1-0.09) / Lseg[cm]
+  // Lseg_mm / 10 = cm
+  if (Lseg_mm <= 0) return 0;
+  return (0.71 * 0.6 * 33 * (1 - 0.09)) / (Lseg_mm / 10);
+}
+
+function rateMr(edh) {
+  if (edh >= 200) return { label: 'Good',   cls: 'good' };
+  if (edh >= 100) return { label: 'Fair',   cls: 'warn' };
+  return              { label: 'Weak',   cls: 'bad'  };
+}
+
+// ══════════════════════════════════════════════════════
+//  MAIN ANALYSIS
+// ══════════════════════════════════════════════════════
+function runAnalysis() {
+  if (!rawRows.length) { toast('Load data first'); return; }
+
+  const Km   = parseFloat(document.getElementById('Km').value)   || 1.0;
+  const Kt   = parseFloat(document.getElementById('Kt').value)   || 1.0;
+  const Kq   = parseFloat(document.getElementById('Kq').value)   || 1.0;
+  const K    = parseFloat(document.getElementById('roadClass').value);
+  const segL = parseFloat(document.getElementById('segLen').value) || 1000;
+  const alph = document.getElementById('alpha').value;
+
+  // Step 1: compute Litt
+  results = rawRows.map(r => ({
+    ...r,
+    Litt: (1 / Kq) * Km * Kt * r.Li,
+    outlier: false,
+    segIdx: -1
+  }));
+
+  const chainMs = results.map(r => r.chainageM);
+  const Litts   = results.map(r => r.Litt);
+
+  // Step 2: CDS segmentation
+  const segs = cdsSegment(Litts, chainMs, Math.min(segL, 500));
+
+  // Step 3: per-segment outlier removal + stats
+  segments = [];
+  segs.forEach((seg, si) => {
+    const idxs  = [];
+    for (let i = seg.start; i <= seg.end; i++) idxs.push(i);
+    const vals  = idxs.map(i => results[i].Litt);
+    const { outlierMask } = removeOutliers(vals, alph);
+
+    outlierMask.forEach((out, j) => {
+      results[idxs[j]].outlier = out;
+      results[idxs[j]].segIdx  = si;
+    });
+
+    const clean = vals.filter((_, j) => !outlierMask[j]);
+    const n     = clean.length;
+    const Lavg = n ? clean.reduce((s, v) => s + v, 0) / n : 0;
+    const delta = n > 1 ? Math.sqrt(clean.reduce((s, v) => s + (v - Lavg) ** 2, 0) / (n - 1)) : 0;
+    const Lseg = Lavg + K * delta;
+    const Mr = calcMr(Lseg);
+
+    segments.push({
+      idx: si,
+      routeId: results[idxs[0]].routeId,
+      fromM: results[idxs[0]].chainageM,
+      toM:   results[idxs[idxs.length - 1]].chainageM,
+      fromLabel: results[idxs[0]].chainage,
+      toLabel:   results[idxs[idxs.length - 1]].chainage,
+      n, Lavg, delta, Lseg, Mr,
+      idxs
+    });
+  });
+
+  renderAll();
+  toast('Analysis complete — ' + segments.length + ' segments identified');
+}
+
+// ══════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════
+function renderAll() {
+  document.getElementById('overview-empty').style.display   = 'none';
+  document.getElementById('overview-content').style.display = 'flex';
+  renderStats();
+  renderDeflChart();
+  renderSegTable();
+  renderRawTable();
+  renderLRSTable();
+  renderHistChart();
+  renderMrBar();
+  renderCDSChart();
+}
+
+const COLORS = ['#1ABC9C','#D4A017','#C0392B','#3498DB','#9B59B6','#E67E22','#27AE60','#E74C3C'];
+
+function renderStats() {
+  const allMr = segments.map(s => s.Mr);
+  const minMr = Math.min(...allMr);
+  const maxMr = Math.max(...allMr);
+  const avgMr = allMr.reduce((a, b) => a + b, 0) / allMr.length;
+  const allLseg = segments.map(s => s.Lseg);
+  const avgLseg = allLseg.reduce((a, b) => a + b, 0) / allLseg.length;
+  const totalLen = (rawRows[rawRows.length - 1].chainageM - rawRows[0].chainageM) / 1000;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card navy">
+      <div class="s-label">Route Length</div>
+      <div class="s-val">${totalLen.toFixed(1)}<span class="s-unit"> km</span></div>
+    </div>
+    <div class="stat-card gold">
+      <div class="s-label">Segments</div>
+      <div class="s-val">${segments.length}</div>
+    </div>
+    <div class="stat-card teal">
+      <div class="s-label">Mean Mr</div>
+      <div class="s-val">${avgMr.toFixed(0)}<span class="s-unit"> MPa</span></div>
+    </div>
+    <div class="stat-card red">
+      <div class="s-label">Min Mr (Weakest)</div>
+      <div class="s-val">${minMr.toFixed(0)}<span class="s-unit"> MPa</span></div>
+    </div>
+  `;
+}
+
+function renderDeflChart() {
+  const ctx = document.getElementById('deflChart').getContext('2d');
+  if (charts.defl) charts.defl.destroy();
+
+  const labels    = results.map(r => r.chainage.trim());
+  const rawData   = results.map(r => r.Li);
+  const corrData  = results.map(r => r.outlier ? null : r.Litt);
+  const outData   = results.map(r => r.outlier ? r.Litt : null);
+
+  // segment means overlay
+  const segMean = results.map(r => {
+    const s = segments[r.segIdx];
+    return s ? s.Lseg : null;
+  });
+
+  charts.defl = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Li raw (mm)',     data: rawData,  borderColor: '#8FA3BC', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.2 },
+        { label: 'Litt corrected',  data: corrData, borderColor: '#1ABC9C', borderWidth: 2,   pointRadius: 3, pointBackgroundColor: '#1ABC9C', fill: false, tension: 0.1 },
+        { label: 'Outliers',        data: outData,  borderColor: 'transparent', pointRadius: 6, pointBackgroundColor: '#C0392B', type: 'scatter', fill: false },
+        { label: 'L.seg (segment)',   data: segMean,  borderColor: '#D4A017', borderWidth: 2, borderDash: [6,3], pointRadius: 0, fill: false, tension: 0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8FA3BC', font: { family: 'DM Mono', size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#8FA3BC', maxTicksLimit: 20, font: { family: 'DM Mono', size: 10 } }, grid: { color: 'rgba(143,163,188,0.08)' } },
+        y: { ticks: { color: '#8FA3BC', font: { family: 'DM Mono', size: 11 } }, grid: { color: 'rgba(143,163,188,0.08)' }, title: { display: true, text: 'Deflection (mm)', color: '#8FA3BC', font: { family: 'DM Mono', size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderHistChart() {
+  const ctx = document.getElementById('histChart').getContext('2d');
+  if (charts.hist) charts.hist.destroy();
+
+  const vals = results.filter(r => !r.outlier).map(r => r.Litt);
+  const min  = Math.min(...vals), max = Math.max(...vals);
+  const bins = 12, step = (max - min) / bins;
+  const counts = Array(bins).fill(0);
+  const lbls   = [];
+  for (let i = 0; i < bins; i++) lbls.push((min + i * step).toFixed(2));
+  vals.forEach(v => {
+    let b = Math.floor((v - min) / step);
+    if (b >= bins) b = bins - 1;
+    counts[b]++;
+  });
+
+  charts.hist = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: lbls,
+      datasets: [{ label: 'Count', data: counts, backgroundColor: 'rgba(26,188,156,0.5)', borderColor: '#1ABC9C', borderWidth: 1 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8FA3BC', font: { family: 'DM Mono', size: 9 } }, grid: { display: false } },
+        y: { ticks: { color: '#8FA3BC', font: { family: 'DM Mono', size: 10 } }, grid: { color: 'rgba(143,163,188,0.08)' } }
+      }
+    }
+  });
+}
+
+function renderMrBar() {
+  const ctx = document.getElementById('mrBarChart').getContext('2d');
+  if (charts.mrBar) charts.mrBar.destroy();
+
+  const labels = segments.map((s, i) => `S${i + 1}`);
+  const data   = segments.map(s => s.Mr.toFixed(1));
+  const colors = segments.map(s => s.Mr >= 200 ? 'rgba(39,174,96,0.7)' : s.Mr >= 100 ? 'rgba(230,126,34,0.7)' : 'rgba(192,57,43,0.7)');
+
+  charts.mrBar = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Mr (MPa)', data, backgroundColor: colors, borderColor: colors.map(c => c.replace('0.7','1')), borderWidth: 1 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8FA3BC', font: { family: 'DM Mono', size: 9 } }, grid: { display: false } },
+        y: { ticks: { color: '#8FA3BC', font: { family: 'DM Mono', size: 10 } }, grid: { color: 'rgba(143,163,188,0.08)' }, title: { display: true, text: 'MPa', color: '#8FA3BC', font: { family: 'DM Mono', size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderCDSChart() {
+  const ctx = document.getElementById('cdsChart').getContext('2d');
+  if (charts.cds) charts.cds.destroy();
+
+  const Litts   = results.map(r => r.Litt);
+  const chainMs = results.map(r => r.chainageM);
+  const n       = Litts.length;
+  const totalLen = chainMs[n - 1] - chainMs[0];
+  const phi     = Litts.reduce((s, v) => s + v, 0) / totalLen;
+
+  let cumSi = 0;
+  const Zx  = Litts.map((v, i) => {
+    if (i === 0) return 0;
+    const dx = chainMs[i] - chainMs[i - 1];
+    cumSi += ((v + Litts[i - 1]) / 2) * dx;
+    return cumSi - phi * (chainMs[i] - chainMs[0]);
+  });
+
+  const labels = results.map(r => r.chainage.trim());
+
+  // segment boundary annotations
+  const segBounds = segments.map(s => s.fromLabel.trim());
+
+  charts.cds = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{ label: 'Zx (CDS)', data: Zx, borderColor: '#D4A017', borderWidth: 2, pointRadius: 0, fill: 'origin', backgroundColor: 'rgba(212,160,23,0.05)', tension: 0.1 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8FA3BC', font: { family: 'DM Mono', size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#8FA3BC', maxTicksLimit: 20, font: { family: 'DM Mono', size: 9 } }, grid: { color: 'rgba(143,163,188,0.06)' } },
+        y: { ticks: { color: '#8FA3BC', font: { family: 'DM Mono', size: 10 } }, grid: { color: 'rgba(143,163,188,0.06)' }, title: { display: true, text: 'Zx', color: '#8FA3BC', font: { family: 'DM Mono', size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderSegTable() {
+  const tbody = document.getElementById('segBody');
+  document.getElementById('segCount').textContent = segments.length + ' segments';
+
+  tbody.innerHTML = segments.map((s, i) => {
+    const r = rateMr(s.Mr);
+    const maxMr = Math.max(...segments.map(x => x.Mr));
+    const barW = Math.round((s.Mr / maxMr) * 100);
+    const barCol = r.cls === 'good' ? '#27AE60' : r.cls === 'warn' ? '#E67E22' : '#C0392B';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td class="muted">${s.fromLabel}</td>
+      <td class="muted">${s.toLabel}</td>
+      <td>${((s.toM - s.fromM) / 1000).toFixed(2)} km</td>
+      <td>${s.n}</td>
+      <td>${s.Lavg.toFixed(3)}</td>
+      <td>${s.delta.toFixed(3)}</td>
+      <td>${s.Lseg.toFixed(3)}</td>
+      <td>
+        <div class="seg-bar-container">
+          <div class="seg-bar" style="width:${barW}px;background:${barCol}"></div>
+          <span>${s.Mr.toFixed(1)}</span>
+        </div>
+      </td>
+      <td><span class="pill ${r.cls}">${r.label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderRawTable() {
+  const tbody = document.getElementById('rawBody');
+  document.getElementById('rawCount').textContent = results.length + ' points';
+  tbody.innerHTML = results.map((r, i) => `
+    <tr>
+      <td class="muted">${r.ptId}</td>
+      <td>${r.chainage.trim()}</td>
+      <td>${r.Li.toFixed(3)}</td>
+      <td>${r.Litt.toFixed(3)}</td>
+      <td>${r.outlier ? '<span class="pill bad">Yes</span>' : '<span class="muted">—</span>'}</td>
+      <td class="muted">S${(r.segIdx + 1)}</td>
+    </tr>`).join('');
+}
+
+function renderLRSTable() {
+  const tbody = document.getElementById('lrsBody');
+  tbody.innerHTML = segments.map(s => {
+    const r = rateMr(s.Mr);
+    return `<tr>
+      <td>${s.routeId}</td>
+      <td class="muted">${s.fromM.toFixed(3)}</td>
+      <td class="muted">${s.toM.toFixed(3)}</td>
+      <td>${s.n}</td>
+      <td>${s.Lavg.toFixed(4)}</td>
+      <td>${s.Lseg.toFixed(4)}</td>
+      <td>${s.Mr.toFixed(1)}</td>
+      <td><span class="pill ${r.cls}">${r.label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════════════
+function exportLRS() {
+  if (!segments.length) { toast('Run analysis first'); return; }
+  const hdr = 'Route_ID,From_Measure,To_Measure,Point_Count,Mean_Deflection_Lavg_mm,Char_Deflection_Lseg_mm,Mr_MPa\n';
+  const rows = segments.map(s =>
+    `${s.routeId},${s.fromM.toFixed(3)},${s.toM.toFixed(3)},${s.n},${s.Lavg.toFixed(4)},${s.Lseg.toFixed(4)},${s.Mr.toFixed(1)}`
+  ).join('\n');
+  download(hdr + rows, 'LRS_Benkelman_Output.csv');
+}
+
+function exportReport() {
+  if (!segments.length) { toast('Run analysis first'); return; }
+  let txt = 'BENKELMAN BEAM ANALYSIS REPORT\nTCVN 8867:2011\n' + '='.repeat(60) + '\n\n';
+  txt += `Route: ${segments[0].routeId}\n`;
+  txt += `Generated: ${new Date().toISOString()}\n\n`;
+  txt += 'PARAMETERS\n----------\n';
+  txt += `Km=${document.getElementById('Km').value}  Kt=${document.getElementById('Kt').value}  Kq=${document.getElementById('Kq').value}  K=${document.getElementById('roadClass').value}\n\n`;
+  txt += 'SEGMENT RESULTS\n' + '-'.repeat(60) + '\n';
+  txt += 'Seg  From          To            n    L.avg     L.seg     Mr     Rating\n';
+  segments.forEach((s, i) => {
+    const r = rateMr(s.Mr);
+    txt += `${String(i + 1).padStart(3)}  ${s.fromLabel.trim().padEnd(12)}  ${s.toLabel.trim().padEnd(12)}  ${String(s.n).padStart(3)}  ${s.Lavg.toFixed(3).padStart(6)}  ${s.Lseg.toFixed(3).padStart(6)}  ${s.Mr.toFixed(1).padStart(6)}  ${r.label}\n`;
+  });
+  download(txt, 'Benkelman_Report.txt');
+}
+
+function download(content, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
+  a.download = filename; a.click();
+  toast('Downloaded: ' + filename);
+}
+
+// ══════════════════════════════════════════════════════
+//  UI HELPERS
+// ══════════════════════════════════════════════════════
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+function switchTabById(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  // activate matching tab button
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + id + "'")) t.classList.add('active');
+  });
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('warn', msg.startsWith('⚠'));
+  el.classList.add('show');
+  const duration = msg.startsWith('⚠') ? 5000 : 2800;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function downloadTemplate() {
+  const csv = 'Route_ID,Point_ID,Chainage,Deflection_Li_mm\nNR10,1,Km 0+000,0.45\nNR10,2,Km 1+000,0.52\nNR10,3,Km 2+000,0.48\n';
+  download(csv, 'Benkelman_Survey_Template.csv');
+}
+
+function loadSample() {
+  rawRows = parseCSV(SAMPLE_CSV);
+  document.getElementById('fileName').textContent = 'sample_NR10_100km.csv (' + rawRows.length + ' pts)';
+  toast('Sample loaded — ' + rawRows.length + ' measurement points');
+}
+
+// ── FILE LOADING ──────────────────────────────────────
+function loadFile(file) {
+  if (!file) return;
+  // Validate extension
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['csv', 'txt'].includes(ext)) {
+    toast('⚠ Please upload a .csv file');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast('⚠ File too large (max 10 MB)');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => toast('⚠ Could not read file — try again');
+  reader.onload = ev => {
+    const text = ev.target.result;
+    rawRows = parseCSV(text);
+    if (rawRows.length) {
+      document.getElementById('fileName').textContent = file.name + ' (' + rawRows.length + ' pts)';
+      if (!document.querySelector('#tab-overview.active')) switchTabById('overview');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// file input
+document.getElementById('csvFile').addEventListener('change', function(e) {
+  loadFile(e.target.files[0]);
+  this.value = ''; // reset so same file can be re-uploaded
+});
+
+// drag-and-drop
+const zone = document.getElementById('uploadZone');
+['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('drag'); }));
+['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('drag'); }));
+zone.addEventListener('drop', ev => loadFile(ev.dataTransfer.files[0]));
+
+// Kt auto-calc helper from TCVN D.1
+document.getElementById('Km').addEventListener('change', () => {});
+
+// auto-run on load with sample
+window.addEventListener('load', () => {
+  loadSample();
+  setTimeout(() => runAnalysis(), 300);
+});
+</script>
+</body>
+</html>
