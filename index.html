@@ -1,10 +1,42 @@
-<!DOCTYPE html>
-<!-- saved from url=(0050)file:///D:/docs/download/benkelman_tcvn8867_2.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Benkelman Beam Analyser · TCVN 8867:2011</title>
-<script src="./Benkelman Beam Analyser · TCVN 8867_2011_files/papaparse.min.js.download"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" onerror="window._papafailed=true"></script>
+<script>
+// Inline CSV parser — used if PapaParse CDN fails to load
+function _parseCSVFallback(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l => l.trim());
+  if (!lines.length) return { data: [] };
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  const data = [];
+  for (let i = 1; i < lines.length; i++) {
+    // handle quoted fields with commas
+    const cols = [];
+    let cur = '', inQ = false;
+    for (const ch of lines[i]) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    cols.push(cur.trim());
+    if (cols.length < 2) continue;
+    const obj = {};
+    headers.forEach((h, j) => obj[h] = (cols[j] || '').replace(/^"|"$/g,''));
+    data.push(obj);
+  }
+  return { data };
+}
+function _doParse(text) {
+  if (typeof Papa !== 'undefined') {
+    return Papa.parse(text.trim(), { header: true, skipEmptyLines: true });
+  }
+  return _parseCSVFallback(text.trim());
+}
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
@@ -276,8 +308,10 @@
     padding: 10px 18px; border-radius: 8px;
     opacity: 0; transform: translateY(10px);
     transition: all 0.3s; z-index: 999; pointer-events: none;
+    max-width: 380px; line-height: 1.5;
   }
   #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.warn { border-color: var(--crimson); color: #ff8a80; background: rgba(192,57,43,0.15); }
 
   /* scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -324,13 +358,14 @@
   <div>
     <div class="section-label">Input Data</div>
     <div class="upload-zone" id="uploadZone">
-      <input type="file" id="csvFile" accept=".csv">
+      <input type="file" id="csvFile" accept=".csv,.txt">
       <div class="up-icon">📁</div>
       <p>Drop CSV or click to browse</p>
-      <p>Columns: Route_ID, Point_ID, Chainage, Deflection_Li_mm</p>
-      <div class="file-name" id="fileName">sample_NR10_100km.csv (65 pts)</div>
+      <p style="margin-top:4px;font-size:10px;color:#6b8099">Route_ID · Point_ID · Chainage · Deflection_Li_mm</p>
+      <div class="file-name" id="fileName">No file selected</div>
     </div>
-    <button class="btn btn-secondary" style="margin-top:10px;font-size:11px;" onclick="loadSample()">⬇ Load Sample (NR10 · 100 km)</button>
+    <button class="btn btn-secondary" style="margin-top:6px;font-size:11px;" onclick="downloadTemplate()">⬇ Download CSV Template</button>
+    <button class="btn btn-secondary" style="margin-top:4px;font-size:11px;" onclick="loadSample()">⬇ Load Sample (NR10 · 65 pts)</button>
   </div>
 
   <div>
@@ -340,7 +375,7 @@
         <label>Road Class (K factor)</label>
         <select id="roadClass">
           <option value="2.0">Class I / Expressway (K = 2.0)</option>
-          <option value="1.64" selected="">Class II / Urban Arterial (K = 1.64)</option>
+          <option value="1.64" selected>Class II / Urban Arterial (K = 1.64)</option>
           <option value="1.3">Class III (K = 1.3)</option>
           <option value="1.04">Class IV–VI / Local (K = 1.04)</option>
         </select>
@@ -365,7 +400,7 @@
         <label>Outlier Test Level α</label>
         <select id="alpha">
           <option value="0.05">α = 0.05 (95% confidence)</option>
-          <option value="0.10" selected="">α = 0.10 (90% confidence)</option>
+          <option value="0.10" selected>α = 0.10 (90% confidence)</option>
         </select>
       </div>
     </div>
@@ -399,52 +434,35 @@
 <!-- ══ CONTENT ══ -->
 <div class="content">
   <div class="tabs">
-    <div class="tab" onclick="switchTab(&#39;overview&#39;)">Overview</div>
-    <div class="tab" onclick="switchTab(&#39;chart&#39;)">Deflection Profile</div>
-    <div class="tab" onclick="switchTab(&#39;segments&#39;)">Segments &amp; Mr</div>
-    <div class="tab" onclick="switchTab(&#39;raw&#39;)">Raw Data</div>
-    <div class="tab active" onclick="switchTab(&#39;lrs&#39;)">LRS Event Table</div>
+    <div class="tab active" onclick="switchTab('overview')">Overview</div>
+    <div class="tab" onclick="switchTab('chart')">Deflection Profile</div>
+    <div class="tab" onclick="switchTab('segments')">Segments & Mr</div>
+    <div class="tab" onclick="switchTab('raw')">Raw Data</div>
+    <div class="tab" onclick="switchTab('lrs')">LRS Event Table</div>
   </div>
 
   <!-- OVERVIEW -->
-  <div class="tab-content" id="tab-overview">
-    <div id="overview-empty" class="empty-state" style="display: none;">
+  <div class="tab-content active" id="tab-overview">
+    <div id="overview-empty" class="empty-state">
       <div class="icon">🛣️</div>
       <h2>No Data Loaded</h2>
       <p>Upload a Benkelman survey CSV or load the sample dataset, then click <strong>Run Analysis</strong>.</p>
     </div>
-    <div id="overview-content" style="display: flex; flex-direction: column; flex: 1 1 0%; min-height: 0px; gap: 14px;">
-      <div class="stats-row" id="statsRow">
-    <div class="stat-card navy">
-      <div class="s-label">Route Length</div>
-      <div class="s-val">64.0<span class="s-unit"> km</span></div>
-    </div>
-    <div class="stat-card gold">
-      <div class="s-label">Segments</div>
-      <div class="s-val">2</div>
-    </div>
-    <div class="stat-card teal">
-      <div class="s-label">Mean Mr</div>
-      <div class="s-val">106<span class="s-unit"> MPa</span></div>
-    </div>
-    <div class="stat-card red">
-      <div class="s-label">Min Mr (Weakest)</div>
-      <div class="s-val">67<span class="s-unit"> MPa</span></div>
-    </div>
-  </div>
+    <div id="overview-content" style="display:none;flex-direction:column;flex:1;min-height:0;gap:14px">
+      <div class="stats-row" id="statsRow"></div>
       <div class="two-charts" style="flex-shrink:0">
         <div class="chart-wrapper" style="flex-direction:column;display:flex">
           <div class="chart-title">Corrected Deflection Distribution</div>
-          <div class="canvas-wrap"><canvas id="histChart" style="box-sizing: border-box; display: block; height: 144px; width: 727px;" width="727" height="144"></canvas></div>
+          <div class="canvas-wrap"><canvas id="histChart"></canvas></div>
         </div>
         <div class="chart-wrapper" style="flex-direction:column;display:flex">
           <div class="chart-title">Mr Distribution by Segment</div>
-          <div class="canvas-wrap"><canvas id="mrBarChart" style="box-sizing: border-box; display: block; height: 144px; width: 727px;" width="727" height="144"></canvas></div>
+          <div class="canvas-wrap"><canvas id="mrBarChart"></canvas></div>
         </div>
       </div>
       <div class="chart-wrapper fill">
         <div class="chart-title">Cumulative Difference Sums (Zx) — Segmentation Plot</div>
-        <div class="canvas-wrap"><canvas id="cdsChart" style="box-sizing: border-box; display: block; height: 503px; width: 1510px;" width="1510" height="503"></canvas></div>
+        <div class="canvas-wrap"><canvas id="cdsChart"></canvas></div>
       </div>
     </div>
   </div>
@@ -453,7 +471,7 @@
   <div class="tab-content" id="tab-chart">
     <div class="chart-wrapper fill">
       <div class="chart-title">Elastic Deflection Profile (Litt corrected, mm)</div>
-      <div class="canvas-wrap"><canvas id="deflChart" style="box-sizing: border-box; display: block; height: 833px; width: 1510px;" width="1510" height="833"></canvas></div>
+      <div class="canvas-wrap"><canvas id="deflChart"></canvas></div>
     </div>
   </div>
 
@@ -462,7 +480,7 @@
     <div class="table-wrapper">
       <div class="table-header">
         <h3>Homogeneous Segments · Structural Capacity</h3>
-        <span id="segCount" style="font-family:var(--mono);font-size:11px;color:var(--slate)">2 segments</span>
+        <span id="segCount" style="font-family:var(--mono);font-size:11px;color:var(--slate)"></span>
       </div>
       <div style="overflow-x:auto">
         <table id="segTable">
@@ -471,39 +489,7 @@
             <th>L.avg (mm)</th><th>δ (mm)</th><th>L.seg (mm)</th>
             <th>Mr (MPa)</th><th>Rating</th>
           </tr></thead>
-          <tbody id="segBody"><tr>
-      <td>1</td>
-      <td class="muted">Km 0+000</td>
-      <td class="muted">Km 37+000</td>
-      <td>37.00 km</td>
-      <td>38</td>
-      <td>0.611</td>
-      <td>0.167</td>
-      <td>0.885</td>
-      <td>
-        <div class="seg-bar-container">
-          <div class="seg-bar" style="width:100px;background:#E67E22"></div>
-          <span>144.5</span>
-        </div>
-      </td>
-      <td><span class="pill warn">Fair</span></td>
-    </tr><tr>
-      <td>2</td>
-      <td class="muted">Km 37+000</td>
-      <td class="muted">Km 64+000</td>
-      <td>27.00 km</td>
-      <td>28</td>
-      <td>1.141</td>
-      <td>0.464</td>
-      <td>1.902</td>
-      <td>
-        <div class="seg-bar-container">
-          <div class="seg-bar" style="width:47px;background:#C0392B"></div>
-          <span>67.3</span>
-        </div>
-      </td>
-      <td><span class="pill bad">Weak</span></td>
-    </tr></tbody>
+          <tbody id="segBody"></tbody>
         </table>
       </div>
     </div>
@@ -514,7 +500,7 @@
     <div class="table-wrapper">
       <div class="table-header">
         <h3>Survey Points · Corrected Values</h3>
-        <span id="rawCount" style="font-family:var(--mono);font-size:11px;color:var(--slate)">65 points</span>
+        <span id="rawCount" style="font-family:var(--mono);font-size:11px;color:var(--slate)"></span>
       </div>
       <div style="overflow-x:auto;max-height:70vh">
         <table>
@@ -522,534 +508,14 @@
             <th>#</th><th>Chainage</th><th>Li raw (mm)</th>
             <th>Litt corr (mm)</th><th>Outlier</th><th>Segment</th>
           </tr></thead>
-          <tbody id="rawBody">
-    <tr>
-      <td class="muted">1</td>
-      <td>Km 0+000</td>
-      <td>0.450</td>
-      <td>0.450</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">2</td>
-      <td>Km 1+000</td>
-      <td>0.520</td>
-      <td>0.520</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">3</td>
-      <td>Km 2+000</td>
-      <td>0.480</td>
-      <td>0.480</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">4</td>
-      <td>Km 3+000</td>
-      <td>0.550</td>
-      <td>0.550</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">5</td>
-      <td>Km 4+000</td>
-      <td>0.410</td>
-      <td>0.410</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">6</td>
-      <td>Km 5+000</td>
-      <td>0.590</td>
-      <td>0.590</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">7</td>
-      <td>Km 6+000</td>
-      <td>0.470</td>
-      <td>0.470</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">8</td>
-      <td>Km 7+000</td>
-      <td>0.500</td>
-      <td>0.500</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">9</td>
-      <td>Km 8+000</td>
-      <td>0.530</td>
-      <td>0.530</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">10</td>
-      <td>Km 9+000</td>
-      <td>0.460</td>
-      <td>0.460</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">11</td>
-      <td>Km 10+000</td>
-      <td>0.610</td>
-      <td>0.610</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">12</td>
-      <td>Km 11+000</td>
-      <td>0.490</td>
-      <td>0.490</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">13</td>
-      <td>Km 12+000</td>
-      <td>0.520</td>
-      <td>0.520</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">14</td>
-      <td>Km 13+000</td>
-      <td>0.440</td>
-      <td>0.440</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">15</td>
-      <td>Km 14+000</td>
-      <td>0.580</td>
-      <td>0.580</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">16</td>
-      <td>Km 15+000</td>
-      <td>0.470</td>
-      <td>0.470</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">17</td>
-      <td>Km 16+000</td>
-      <td>0.510</td>
-      <td>0.510</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">18</td>
-      <td>Km 17+000</td>
-      <td>0.540</td>
-      <td>0.540</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">19</td>
-      <td>Km 18+000</td>
-      <td>0.480</td>
-      <td>0.480</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">20</td>
-      <td>Km 19+000</td>
-      <td>0.550</td>
-      <td>0.550</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">21</td>
-      <td>Km 20+000</td>
-      <td>0.420</td>
-      <td>0.420</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">22</td>
-      <td>Km 21+000</td>
-      <td>0.570</td>
-      <td>0.570</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">23</td>
-      <td>Km 22+000</td>
-      <td>0.500</td>
-      <td>0.500</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">24</td>
-      <td>Km 23+000</td>
-      <td>0.450</td>
-      <td>0.450</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">25</td>
-      <td>Km 24+000</td>
-      <td>0.530</td>
-      <td>0.530</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">26</td>
-      <td>Km 25+000</td>
-      <td>0.490</td>
-      <td>0.490</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">27</td>
-      <td>Km 26+000</td>
-      <td>0.820</td>
-      <td>0.820</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">28</td>
-      <td>Km 27+000</td>
-      <td>0.880</td>
-      <td>0.880</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">29</td>
-      <td>Km 28+000</td>
-      <td>0.790</td>
-      <td>0.790</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">30</td>
-      <td>Km 29+000</td>
-      <td>0.910</td>
-      <td>0.910</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">31</td>
-      <td>Km 30+000</td>
-      <td>0.850</td>
-      <td>0.850</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">32</td>
-      <td>Km 31+000</td>
-      <td>0.770</td>
-      <td>0.770</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">33</td>
-      <td>Km 32+000</td>
-      <td>0.890</td>
-      <td>0.890</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">34</td>
-      <td>Km 33+000</td>
-      <td>0.830</td>
-      <td>0.830</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">35</td>
-      <td>Km 34+000</td>
-      <td>0.920</td>
-      <td>0.920</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">36</td>
-      <td>Km 35+000</td>
-      <td>0.810</td>
-      <td>0.810</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">37</td>
-      <td>Km 36+000</td>
-      <td>0.860</td>
-      <td>0.860</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S1</td>
-    </tr>
-    <tr>
-      <td class="muted">38</td>
-      <td>Km 37+000</td>
-      <td>0.780</td>
-      <td>0.780</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">39</td>
-      <td>Km 38+000</td>
-      <td>0.900</td>
-      <td>0.900</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">40</td>
-      <td>Km 39+000</td>
-      <td>0.840</td>
-      <td>0.840</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">41</td>
-      <td>Km 40+000</td>
-      <td>0.870</td>
-      <td>0.870</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">42</td>
-      <td>Km 41+000</td>
-      <td>0.760</td>
-      <td>0.760</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">43</td>
-      <td>Km 42+000</td>
-      <td>0.930</td>
-      <td>0.930</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">44</td>
-      <td>Km 43+000</td>
-      <td>0.800</td>
-      <td>0.800</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">45</td>
-      <td>Km 44+000</td>
-      <td>0.850</td>
-      <td>0.850</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">46</td>
-      <td>Km 45+000</td>
-      <td>0.880</td>
-      <td>0.880</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">47</td>
-      <td>Km 46+000</td>
-      <td>1.450</td>
-      <td>1.450</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">48</td>
-      <td>Km 47+000</td>
-      <td>1.520</td>
-      <td>1.520</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">49</td>
-      <td>Km 48+000</td>
-      <td>1.380</td>
-      <td>1.380</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">50</td>
-      <td>Km 49+000</td>
-      <td>1.610</td>
-      <td>1.610</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">51</td>
-      <td>Km 50+000</td>
-      <td>1.490</td>
-      <td>1.490</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">52</td>
-      <td>Km 51+000</td>
-      <td>1.720</td>
-      <td>1.720</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">53</td>
-      <td>Km 52+000</td>
-      <td>1.550</td>
-      <td>1.550</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">54</td>
-      <td>Km 53+000</td>
-      <td>1.420</td>
-      <td>1.420</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">55</td>
-      <td>Km 54+000</td>
-      <td>1.680</td>
-      <td>1.680</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">56</td>
-      <td>Km 55+000</td>
-      <td>1.510</td>
-      <td>1.510</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">57</td>
-      <td>Km 56+000</td>
-      <td>1.470</td>
-      <td>1.470</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">58</td>
-      <td>Km 57+000</td>
-      <td>1.590</td>
-      <td>1.590</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">59</td>
-      <td>Km 58+000</td>
-      <td>1.440</td>
-      <td>1.440</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">60</td>
-      <td>Km 59+000</td>
-      <td>1.650</td>
-      <td>1.650</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">61</td>
-      <td>Km 60+000</td>
-      <td>1.500</td>
-      <td>1.500</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">62</td>
-      <td>Km 61+000</td>
-      <td>0.350</td>
-      <td>0.350</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">63</td>
-      <td>Km 62+000</td>
-      <td>0.320</td>
-      <td>0.320</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">64</td>
-      <td>Km 63+000</td>
-      <td>0.380</td>
-      <td>0.380</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr>
-    <tr>
-      <td class="muted">65</td>
-      <td>Km 64+000</td>
-      <td>0.310</td>
-      <td>0.310</td>
-      <td><span class="muted">—</span></td>
-      <td class="muted">S2</td>
-    </tr></tbody>
+          <tbody id="rawBody"></tbody>
         </table>
       </div>
     </div>
   </div>
 
   <!-- LRS -->
-  <div class="tab-content active" id="tab-lrs">
+  <div class="tab-content" id="tab-lrs">
     <div class="table-wrapper">
       <div class="table-header">
         <h3>ISO 19148 Linear Referencing System Event Table</h3>
@@ -1062,25 +528,7 @@
             <th>Point_Count</th><th>Mean_L.avg (mm)</th>
             <th>L.seg (mm)</th><th>Mr (MPa)</th><th>Rating</th>
           </tr></thead>
-          <tbody id="lrsBody"><tr>
-      <td>NR10</td>
-      <td class="muted">0.000</td>
-      <td class="muted">37000.000</td>
-      <td>38</td>
-      <td>0.6111</td>
-      <td>0.8854</td>
-      <td>144.5</td>
-      <td><span class="pill warn">Fair</span></td>
-    </tr><tr>
-      <td>NR10</td>
-      <td class="muted">37000.000</td>
-      <td class="muted">64000.000</td>
-      <td>28</td>
-      <td>1.1411</td>
-      <td>1.9020</td>
-      <td>67.3</td>
-      <td><span class="pill bad">Weak</span></td>
-    </tr></tbody>
+          <tbody id="lrsBody"></tbody>
         </table>
       </div>
     </div>
@@ -1089,10 +537,10 @@
 </div><!-- .content -->
 </div><!-- .main -->
 
-<div id="toast" class="">Downloaded: LRS_Benkelman_Output.csv</div>
+<div id="toast"></div>
 
 <!-- Chart.js -->
-<script src="./Benkelman Beam Analyser · TCVN 8867_2011_files/chart.umd.min.js.download"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // ══════════════════════════════════════════════════════
 //  SAMPLE DATA (embedded)
@@ -1187,27 +635,49 @@ function parseChainage(s) {
 }
 
 function parseCSV(text) {
-  const r = Papa.parse(text.trim(), { header: true, skipEmptyLines: true });
-  const rows = [];
-  r.data.forEach((row, i) => {
-    const keys = Object.keys(row).map(k => k.trim().toLowerCase().replace(/\s+/g,'_'));
-    const vals = Object.values(row);
-    const obj  = {};
-    keys.forEach((k, j) => obj[k] = typeof vals[j] === 'string' ? vals[j].trim() : vals[j]);
+  // Strip BOM if present
+  text = text.replace(/^\uFEFF/, '').trim();
+  if (!text) { toast('⚠ File is empty'); return []; }
 
-    const routeId  = obj['route_id'] || obj['routeid'] || 'ROUTE';
-    const ptId     = obj['point_id'] || obj['pointid'] || (i+1);
-    const chainRaw = obj['chainage'] || obj['station'] || obj['km'] || '';
-    const liRaw    = obj['deflection_li_mm'] || obj['deflection'] || obj['li_mm'] || obj['li'] || 0;
+  let r;
+  try { r = _doParse(text); }
+  catch(e) { toast('⚠ CSV parse error: ' + e.message); return []; }
+
+  if (!r.data || !r.data.length) { toast('⚠ No data rows found — check file format'); return []; }
+
+  const rows = [];
+  let skipped = 0;
+  r.data.forEach((row, i) => {
+    // Normalise keys: trim, lowercase, collapse spaces→underscore
+    const obj = {};
+    Object.keys(row).forEach(k => {
+      obj[k.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')] = 
+        typeof row[k] === 'string' ? row[k].trim() : row[k];
+    });
+
+    const routeId  = obj['route_id'] || obj['routeid'] || obj['route'] || 'ROUTE';
+    const ptId     = obj['point_id'] || obj['pointid'] || obj['point'] || (i+1);
+    const chainRaw = obj['chainage'] || obj['station'] || obj['km'] || obj['chainage_km'] || '';
+    const liRaw    = obj['deflection_li_mm'] || obj['deflection_limm'] || obj['li_mm'] || 
+                     obj['deflection'] || obj['li'] || obj['deflection_mm'] || '';
 
     const chainM = parseChainage(chainRaw);
     const Li     = parseFloat(liRaw);
 
-    if (!isNaN(chainM) && !isNaN(Li)) {
-      rows.push({ routeId, ptId, chainage: chainRaw, chainageM: chainM, Li });
+    if (!isNaN(chainM) && !isNaN(Li) && Li > 0) {
+      rows.push({ routeId, ptId, chainage: chainRaw || String(chainM), chainageM: chainM, Li });
+    } else {
+      skipped++;
     }
   });
+
   rows.sort((a, b) => a.chainageM - b.chainageM);
+
+  if (!rows.length) {
+    toast('⚠ 0 valid rows — expected columns: Route_ID, Point_ID, Chainage, Deflection_Li_mm');
+  } else if (skipped > 0) {
+    toast('Loaded ' + rows.length + ' pts (' + skipped + ' rows skipped — missing chainage or deflection)');
+  }
   return rows;
 }
 
@@ -1716,11 +1186,29 @@ function switchTab(id) {
   document.getElementById('tab-' + id).classList.add('active');
   event.target.classList.add('active');
 }
+function switchTabById(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  // activate matching tab button
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + id + "'")) t.classList.add('active');
+  });
+}
 
 function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2800);
+  el.textContent = msg;
+  el.classList.toggle('warn', msg.startsWith('⚠'));
+  el.classList.add('show');
+  const duration = msg.startsWith('⚠') ? 5000 : 2800;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function downloadTemplate() {
+  const csv = 'Route_ID,Point_ID,Chainage,Deflection_Li_mm\nNR10,1,Km 0+000,0.45\nNR10,2,Km 1+000,0.52\nNR10,3,Km 2+000,0.48\n';
+  download(csv, 'Benkelman_Survey_Template.csv');
 }
 
 function loadSample() {
@@ -1729,34 +1217,43 @@ function loadSample() {
   toast('Sample loaded — ' + rawRows.length + ' measurement points');
 }
 
-// file upload
-document.getElementById('csvFile').addEventListener('change', function(e) {
-  const file = e.target.files[0];
+// ── FILE LOADING ──────────────────────────────────────
+function loadFile(file) {
   if (!file) return;
+  // Validate extension
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['csv', 'txt'].includes(ext)) {
+    toast('⚠ Please upload a .csv file');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast('⚠ File too large (max 10 MB)');
+    return;
+  }
   const reader = new FileReader();
+  reader.onerror = () => toast('⚠ Could not read file — try again');
   reader.onload = ev => {
-    rawRows = parseCSV(ev.target.result);
-    document.getElementById('fileName').textContent = file.name + ' (' + rawRows.length + ' pts)';
-    toast('Loaded ' + rawRows.length + ' points from ' + file.name);
+    const text = ev.target.result;
+    rawRows = parseCSV(text);
+    if (rawRows.length) {
+      document.getElementById('fileName').textContent = file.name + ' (' + rawRows.length + ' pts)';
+      if (!document.querySelector('#tab-overview.active')) switchTabById('overview');
+    }
   };
-  reader.readAsText(file);
+  reader.readAsText(file, 'UTF-8');
+}
+
+// file input
+document.getElementById('csvFile').addEventListener('change', function(e) {
+  loadFile(e.target.files[0]);
+  this.value = ''; // reset so same file can be re-uploaded
 });
 
 // drag-and-drop
 const zone = document.getElementById('uploadZone');
 ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('drag'); }));
 ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('drag'); }));
-zone.addEventListener('drop', ev => {
-  const file = ev.dataTransfer.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    rawRows = parseCSV(e.target.result);
-    document.getElementById('fileName').textContent = file.name + ' (' + rawRows.length + ' pts)';
-    toast('Loaded ' + rawRows.length + ' points');
-  };
-  reader.readAsText(file);
-});
+zone.addEventListener('drop', ev => loadFile(ev.dataTransfer.files[0]));
 
 // Kt auto-calc helper from TCVN D.1
 document.getElementById('Km').addEventListener('change', () => {});
@@ -1767,6 +1264,5 @@ window.addEventListener('load', () => {
   setTimeout(() => runAnalysis(), 300);
 });
 </script>
-
-
-</body></html>
+</body>
+</html>
