@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -372,14 +371,34 @@ function _doParse(text) {
     <div class="section-label">Parameters</div>
     <div class="param-grid">
       <div class="param-row">
-        <label>Road Class (K factor)</label>
-        <select id="roadClass">
-          <option value="2.0">Class I / Expressway (K = 2.0)</option>
-          <option value="1.64" selected>Class II / Urban Arterial (K = 1.64)</option>
-          <option value="1.3">Class III (K = 1.3)</option>
-          <option value="1.04">Class IV–VI / Local (K = 1.04)</option>
+        <label>Road Class &amp; Standard</label>
+        <select id="roadClass" onchange="updateMrThresholds()">
+          <option value="2.0|300|200" data-std="TCVN/22TCN" data-label="Expressway / Class I">Expressway / Class I — TCVN (K=2.0)</option>
+          <option value="1.64|200|140" data-std="TCVN/22TCN" data-label="Class II / Urban Arterial">Class II / Urban Arterial — TCVN (K=1.64)</option>
+          <option value="1.3|140|100"  data-std="TCVN/22TCN" data-label="Class III">Class III — TCVN (K=1.3)</option>
+          <option value="1.04|100|70"  data-std="TCVN/22TCN" data-label="Class IV–VI / Local">Class IV–VI / Local — TCVN (K=1.04)</option>
+          <option value="2.0|300|200"  data-std="AASHTO"     data-label="Principal Arterial">Principal Arterial — AASHTO (K=2.0)</option>
+          <option value="1.64|200|150" data-std="AASHTO"     data-label="Minor Arterial">Minor Arterial — AASHTO (K=1.64)</option>
+          <option value="1.3|150|100"  data-std="AASHTO"     data-label="Collector">Collector — AASHTO (K=1.3)</option>
+          <option value="1.04|100|70"  data-std="AASHTO"     data-label="Local Road">Local Road — AASHTO (K=1.04)</option>
+          <option value="2.0|250|180"  data-std="JTG-D50"    data-label="Grade 1 (一级)">Grade 1 (一级) — JTG D50 China (K=2.0)</option>
+          <option value="1.64|180|117" data-std="JTG-D50"    data-label="Grade 2 (二级)" selected>Grade 2 (二级) — JTG D50 China (K=1.64) ← NR10</option>
+          <option value="1.3|117|80"   data-std="JTG-D50"    data-label="Grade 3 (三级)">Grade 3 (三级) — JTG D50 China (K=1.3)</option>
+          <option value="1.04|80|50"   data-std="JTG-D50"    data-label="Grade 4 (四级)">Grade 4 (四级) — JTG D50 China (K=1.04)</option>
         </select>
       </div>
+        <div id="mrThresholdBox" style="
+          background:rgba(212,160,23,0.07);
+          border:1px solid rgba(212,160,23,0.25);
+          border-radius:7px; padding:9px 11px; margin-top:4px;
+          font-family:var(--mono); font-size:11px; line-height:1.9;
+        ">
+          <div style="color:var(--gold);font-weight:600;margin-bottom:3px" id="mrStdLabel">JTG D50 · Grade 2 (二级)</div>
+          <div><span style="color:var(--good)">●</span> Good  : Mr ≥ <span id="mrGood">180</span> MPa</div>
+          <div><span style="color:var(--warn)">●</span> Fair   : <span id="mrFairLo">117</span> ≤ Mr &lt; <span id="mrFairHi">180</span> MPa</div>
+          <div><span style="color:var(--bad)">●</span>  Weak  : Mr &lt; <span id="mrWeak">117</span> MPa</div>
+          <div style="margin-top:4px;color:var(--slate)">Design L.seg ≤ <span id="mrDesignDefl">—</span> mm</div>
+        </div>
       <div class="param-row">
         <label>Season Correction Km</label>
         <input type="number" id="Km" value="1.0" step="0.01" min="0.5" max="2.0">
@@ -831,10 +850,44 @@ function calcMr(Lseg_mm) {
   return (0.71 * 0.6 * 33 * (1 - 0.09)) / (Lseg_mm / 10);
 }
 
-function rateMr(edh) {
-  if (edh >= 200) return { label: 'Good',   cls: 'good' };
-  if (edh >= 100) return { label: 'Fair',   cls: 'warn' };
-  return              { label: 'Weak',   cls: 'bad'  };
+// ── MR THRESHOLDS (road-class-driven) ─────────────────
+let MR_GOOD = 180;   // default: JTG Grade 2
+let MR_FAIR = 117;
+
+function getRoadClassParams() {
+  const sel = document.getElementById('roadClass');
+  const opt = sel.options[sel.selectedIndex];
+  const parts = sel.value.split('|');
+  return {
+    K:     parseFloat(parts[0]),
+    mrGood: parseFloat(parts[1]),
+    mrFair: parseFloat(parts[2]),
+    std:   opt.dataset.std   || '',
+    label: opt.dataset.label || ''
+  };
+}
+
+function updateMrThresholds() {
+  const p = getRoadClassParams();
+  MR_GOOD = p.mrGood;
+  MR_FAIR = p.mrFair;
+
+  // Update threshold display box
+  document.getElementById('mrStdLabel').textContent  = p.std + ' · ' + p.label;
+  document.getElementById('mrGood').textContent      = p.mrGood;
+  document.getElementById('mrFairHi').textContent    = p.mrGood;
+  document.getElementById('mrFairLo').textContent    = p.mrFair;
+  document.getElementById('mrWeak').textContent      = p.mrFair;
+
+  // Compute design deflection equivalent: Lseg = 0.71*p*D*(1-mu²)/Mr_fair
+  const designDefl = (0.71 * 0.6 * 33 * 0.91) / p.mrFair; // in cm
+  document.getElementById('mrDesignDefl').textContent = (designDefl * 10).toFixed(3); // mm
+}
+
+function rateMr(mr) {
+  if (mr >= MR_GOOD) return { label: 'Good', cls: 'good' };
+  if (mr >= MR_FAIR) return { label: 'Fair', cls: 'warn' };
+  return                     { label: 'Weak', cls: 'bad'  };
 }
 
 // ══════════════════════════════════════════════════════
@@ -846,7 +899,9 @@ function runAnalysis() {
   const Km   = parseFloat(document.getElementById('Km').value)   || 1.0;
   const Kt   = parseFloat(document.getElementById('Kt').value)   || 1.0;
   const Kq   = parseFloat(document.getElementById('Kq').value)   || 1.0;
-  const K    = parseFloat(document.getElementById('roadClass').value);
+  const cp   = getRoadClassParams();
+  const K    = cp.K;
+  updateMrThresholds();
   const segL = parseFloat(document.getElementById('segLen').value) || 1000;
   const alph = document.getElementById('alpha').value;
 
@@ -1023,7 +1078,7 @@ function renderMrBar() {
 
   const labels = segments.map((s, i) => `S${i + 1}`);
   const data   = segments.map(s => s.Mr.toFixed(1));
-  const colors = segments.map(s => s.Mr >= 200 ? 'rgba(39,174,96,0.7)' : s.Mr >= 100 ? 'rgba(230,126,34,0.7)' : 'rgba(192,57,43,0.7)');
+  const colors = segments.map(s => s.Mr >= MR_GOOD ? 'rgba(39,174,96,0.7)' : s.Mr >= MR_FAIR ? 'rgba(230,126,34,0.7)' : 'rgba(192,57,43,0.7)');
 
   charts.mrBar = new Chart(ctx, {
     type: 'bar',
@@ -1160,7 +1215,10 @@ function exportReport() {
   txt += `Route: ${segments[0].routeId}\n`;
   txt += `Generated: ${new Date().toISOString()}\n\n`;
   txt += 'PARAMETERS\n----------\n';
-  txt += `Km=${document.getElementById('Km').value}  Kt=${document.getElementById('Kt').value}  Kq=${document.getElementById('Kq').value}  K=${document.getElementById('roadClass').value}\n\n`;
+  const cp = getRoadClassParams();
+  txt += `Road Class: ${cp.label} (${cp.std})  K=${cp.K}\n`;
+  txt += `Mr thresholds: Good ≥ ${MR_GOOD} MPa | Fair ≥ ${MR_FAIR} MPa | Weak < ${MR_FAIR} MPa\n`;
+  txt += `Km=${document.getElementById('Km').value}  Kt=${document.getElementById('Kt').value}  Kq=${document.getElementById('Kq').value}\n\n`;
   txt += 'SEGMENT RESULTS\n' + '-'.repeat(60) + '\n';
   txt += 'Seg  From          To            n    L.avg     L.seg     Mr     Rating\n';
   segments.forEach((s, i) => {
@@ -1260,6 +1318,7 @@ document.getElementById('Km').addEventListener('change', () => {});
 
 // auto-run on load with sample
 window.addEventListener('load', () => {
+  updateMrThresholds();
   loadSample();
   setTimeout(() => runAnalysis(), 300);
 });
