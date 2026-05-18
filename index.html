@@ -962,6 +962,12 @@ function runAnalysis() {
 function renderAll() {
   document.getElementById('overview-empty').style.display   = 'none';
   document.getElementById('overview-content').style.display = 'flex';
+  // Chart.js measured 0×0 while container was hidden — force resize after paint
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      Object.values(charts).forEach(c => { if (c && c.resize) c.resize(); });
+    });
+  });
   renderStats();
   renderDeflChart();
   renderSegTable();
@@ -1253,14 +1259,19 @@ function switchTab(id) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   event.target.classList.add('active');
+  requestAnimationFrame(() => {
+    Object.values(charts).forEach(c => { if (c && c.resize) c.resize(); });
+  });
 }
 function switchTabById(id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
-  // activate matching tab button
   document.querySelectorAll('.tab').forEach(t => {
     if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + id + "'")) t.classList.add('active');
+  });
+  requestAnimationFrame(() => {
+    Object.values(charts).forEach(c => { if (c && c.resize) c.resize(); });
   });
 }
 
@@ -1284,6 +1295,7 @@ function loadSample() {
   surveyFileName = 'sample_NR10_100km.csv';
   document.getElementById('fileName').textContent = 'sample_NR10_100km.csv (' + rawRows.length + ' pts)';
   toast('Sample loaded — ' + rawRows.length + ' measurement points');
+  setTimeout(() => runAnalysis(), 80);
 }
 
 // ── FILE LOADING ──────────────────────────────────────
@@ -1308,6 +1320,7 @@ function loadFile(file) {
       surveyFileName = file.name;
       document.getElementById('fileName').textContent = file.name + ' (' + rawRows.length + ' pts)';
       if (!document.querySelector('#tab-overview.active')) switchTabById('overview');
+      setTimeout(() => runAnalysis(), 80);
     }
   };
   reader.readAsText(file, 'UTF-8');
@@ -1332,7 +1345,11 @@ document.getElementById('Km').addEventListener('change', () => {});
 window.addEventListener('load', () => {
   updateMrThresholds();
   loadSample();
-  setTimeout(() => runAnalysis(), 300);
+});
+
+// Resize all charts when window size changes
+window.addEventListener('resize', () => {
+  Object.values(charts).forEach(c => { if (c && c.resize) c.resize(); });
 });
 </script>
 </body>
