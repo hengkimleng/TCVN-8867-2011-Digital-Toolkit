@@ -394,9 +394,9 @@ function _doParse(text) {
           font-family:var(--mono); font-size:11px; line-height:1.9;
         ">
           <div style="color:var(--gold);font-weight:600;margin-bottom:3px" id="mrStdLabel">JTG D50 · Grade 2 (二级)</div>
-          <div><span style="color:var(--good)">●</span> Good  : Mr ≥ <span id="mrGood">180</span> MPa</div>
-          <div><span style="color:var(--warn)">●</span> Fair   : <span id="mrFairLo">117</span> ≤ Mr &lt; <span id="mrFairHi">180</span> MPa</div>
-          <div><span style="color:var(--bad)">●</span>  Weak  : Mr &lt; <span id="mrWeak">117</span> MPa</div>
+          <div><span style="color:var(--good)">●</span> Good  : MR ≥ <span id="mrGood">180</span> MPa</div>
+          <div><span style="color:var(--warn)">●</span> Fair   : <span id="mrFairLo">117</span> ≤ MR &lt; <span id="mrFairHi">180</span> MPa</div>
+          <div><span style="color:var(--bad)">●</span>  Weak  : MR &lt; <span id="mrWeak">117</span> MPa</div>
           <div style="margin-top:4px;color:var(--slate)">Design L.seg ≤ <span id="mrDesignDefl">—</span> mm</div>
         </div>
       <div class="param-row">
@@ -430,7 +430,7 @@ function _doParse(text) {
       <div class="f-title">TCVN 8867:2011 · §6 Formulae</div>
       <div class="f-eq">Litt = (1/Kq)·Km·Kt·Li</div>
       <div style="margin-top:4px;">L.seg = L.avg + K·δ</div>
-      <div style="margin-top:4px;">Mr = 0.71·p·D·(1−μ²)/L.seg</div>
+      <div style="margin-top:4px;">MR = 0.71·p·D·(1−μ²)/L.seg</div>
       <div style="margin-top:6px;color:var(--gold);font-size:10px;">p=0.6 MPa · D=33 cm · μ=0.3</div>
     </div>
   </div>
@@ -445,7 +445,7 @@ function _doParse(text) {
   </div>
 
   <div class="info-box">
-    <strong>Segmentation:</strong> Cumulative Difference Sums (Annex F) applied to raw corrected deflections. Segments &lt;500 m merged with adjacent. Outliers removed per Annex E before L.seg / Mr computation.
+    <strong>Segmentation:</strong> Cumulative Difference Sums (Annex F) applied to raw corrected deflections. Segments &lt;500 m merged with adjacent. Outliers removed per Annex E before L.seg / MR computation.
   </div>
 
 </aside>
@@ -455,7 +455,7 @@ function _doParse(text) {
   <div class="tabs">
     <div class="tab active" onclick="switchTab('overview')">Overview</div>
     <div class="tab" onclick="switchTab('chart')">Deflection Profile</div>
-    <div class="tab" onclick="switchTab('segments')">Segments & Mr</div>
+    <div class="tab" onclick="switchTab('segments')">Segments & MR</div>
     <div class="tab" onclick="switchTab('raw')">Raw Data</div>
     <div class="tab" onclick="switchTab('lrs')">LRS Event Table</div>
   </div>
@@ -475,7 +475,7 @@ function _doParse(text) {
           <div class="canvas-wrap"><canvas id="histChart"></canvas></div>
         </div>
         <div class="chart-wrapper" style="flex-direction:column;display:flex">
-          <div class="chart-title">Mr Distribution by Segment</div>
+          <div class="chart-title">MR Distribution by Segment</div>
           <div class="canvas-wrap"><canvas id="mrBarChart"></canvas></div>
         </div>
       </div>
@@ -506,7 +506,7 @@ function _doParse(text) {
           <thead><tr>
             <th>#</th><th>From</th><th>To</th><th>Length (m)</th><th>n pts</th>
             <th>L.avg (mm)</th><th>δ (mm)</th><th>L.seg (mm)</th>
-            <th>Mr (MPa)</th><th>Rating</th>
+            <th>MR (MPa)</th><th>Rating</th>
           </tr></thead>
           <tbody id="segBody"></tbody>
         </table>
@@ -545,7 +545,7 @@ function _doParse(text) {
           <thead><tr>
             <th>Route_ID</th><th>From_Measure (m)</th><th>To_Measure (m)</th>
             <th>Point_Count</th><th>Mean_L.avg (mm)</th>
-            <th>L.seg (mm)</th><th>Mr (MPa)</th><th>Rating</th>
+            <th>L.seg (mm)</th><th>MR (MPa)</th><th>Rating</th>
           </tr></thead>
           <tbody id="lrsBody"></tbody>
         </table>
@@ -636,8 +636,9 @@ NR10,65,Km 64+000,0.31`;
 // ══════════════════════════════════════════════════════
 let rawRows = [];    // {routeId, ptId, chainage, chainageM, Li}
 let results  = [];   // {Li, Litt, outlier, segIdx}
-let segments = [];   // {from, to, n, Lavg, Lseg, Mr, routeId}
+let segments = [];   // {from, to, n, Lavg, Lseg, MR, routeId}
 let charts   = {};
+let surveyFileName = 'sample_NR10_100km.csv';
 
 // ══════════════════════════════════════════════════════
 //  PARSING HELPERS
@@ -842,9 +843,9 @@ function cdsSegment(corrected, chainageM, minSegLen) {
 //  MODULUS §6.2.4
 // ══════════════════════════════════════════════════════
 function calcMr(Lseg_mm) {
-  // Mr = 0.71 * p * D * (1 - mu^2) / Lseg
+  // MR = 0.71 * p * D * (1 - mu^2) / Lseg
   // p=0.6 MPa, D=33 cm, mu=0.3, Lseg in mm → convert to cm for dimensionless
-  // standard formula: Mr [MPa] = 0.71 * p[MPa] * D[cm] * (1-0.09) / Lseg[cm]
+  // standard formula: MR [MPa] = 0.71 * p[MPa] * D[cm] * (1-0.09) / Lseg[cm]
   // Lseg_mm / 10 = cm
   if (Lseg_mm <= 0) return 0;
   return (0.71 * 0.6 * 33 * (1 - 0.09)) / (Lseg_mm / 10);
@@ -937,7 +938,7 @@ function runAnalysis() {
     const Lavg = n ? clean.reduce((s, v) => s + v, 0) / n : 0;
     const delta = n > 1 ? Math.sqrt(clean.reduce((s, v) => s + (v - Lavg) ** 2, 0) / (n - 1)) : 0;
     const Lseg = Lavg + K * delta;
-    const Mr = calcMr(Lseg);
+    const MR = calcMr(Lseg);
 
     segments.push({
       idx: si,
@@ -946,7 +947,7 @@ function runAnalysis() {
       toM:   results[idxs[idxs.length - 1]].chainageM,
       fromLabel: results[idxs[0]].chainage,
       toLabel:   results[idxs[idxs.length - 1]].chainage,
-      n, Lavg, delta, Lseg, Mr,
+      n, Lavg, delta, Lseg, Mr: MR,
       idxs
     });
   });
@@ -974,10 +975,10 @@ function renderAll() {
 const COLORS = ['#1ABC9C','#D4A017','#C0392B','#3498DB','#9B59B6','#E67E22','#27AE60','#E74C3C'];
 
 function renderStats() {
-  const allMr = segments.map(s => s.Mr);
-  const minMr = Math.min(...allMr);
-  const maxMr = Math.max(...allMr);
-  const avgMr = allMr.reduce((a, b) => a + b, 0) / allMr.length;
+  const allMR = segments.map(s => s.Mr);
+  const minMR = Math.min(...allMr);
+  const maxMR = Math.max(...allMr);
+  const avgMR = allMr.reduce((a, b) => a + b, 0) / allMr.length;
   const allLseg = segments.map(s => s.Lseg);
   const avgLseg = allLseg.reduce((a, b) => a + b, 0) / allLseg.length;
   const totalLen = (rawRows[rawRows.length - 1].chainageM - rawRows[0].chainageM) / 1000;
@@ -992,11 +993,11 @@ function renderStats() {
       <div class="s-val">${segments.length}</div>
     </div>
     <div class="stat-card teal">
-      <div class="s-label">Mean Mr</div>
+      <div class="s-label">Mean MR</div>
       <div class="s-val">${avgMr.toFixed(0)}<span class="s-unit"> MPa</span></div>
     </div>
     <div class="stat-card red">
-      <div class="s-label">Min Mr (Weakest)</div>
+      <div class="s-label">Min MR (Weakest)</div>
       <div class="s-val">${minMr.toFixed(0)}<span class="s-unit"> MPa</span></div>
     </div>
   `;
@@ -1084,7 +1085,7 @@ function renderMrBar() {
     type: 'bar',
     data: {
       labels,
-      datasets: [{ label: 'Mr (MPa)', data, backgroundColor: colors, borderColor: colors.map(c => c.replace('0.7','1')), borderWidth: 1 }]
+      datasets: [{ label: 'MR (MPa)', data, backgroundColor: colors, borderColor: colors.map(c => c.replace('0.7','1')), borderWidth: 1 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -1143,8 +1144,8 @@ function renderSegTable() {
 
   tbody.innerHTML = segments.map((s, i) => {
     const r = rateMr(s.Mr);
-    const maxMr = Math.max(...segments.map(x => x.Mr));
-    const barW = Math.round((s.Mr / maxMr) * 100);
+    const maxMR = Math.max(...segments.map(x => x.Mr));
+    const barW = Math.round((s.Mr / maxMR) * 100);
     const barCol = r.cls === 'good' ? '#27AE60' : r.cls === 'warn' ? '#E67E22' : '#C0392B';
     return `<tr>
       <td>${i + 1}</td>
@@ -1202,30 +1203,39 @@ function renderLRSTable() {
 // ══════════════════════════════════════════════════════
 function exportLRS() {
   if (!segments.length) { toast('Run analysis first'); return; }
-  const hdr = 'Route_ID,From_Measure,To_Measure,Point_Count,Mean_Deflection_Lavg_mm,Char_Deflection_Lseg_mm,Mr_MPa\n';
+  const baseName = surveyFileName.replace(/\.[^.]+$/, '');
+  const hdr = 'Route_ID,From_Measure,To_Measure,Point_Count,Mean_Deflection_Lavg_mm,Char_Deflection_Lseg_mm,MR_MPa\n';
   const rows = segments.map(s =>
     `${s.routeId},${s.fromM.toFixed(3)},${s.toM.toFixed(3)},${s.n},${s.Lavg.toFixed(4)},${s.Lseg.toFixed(4)},${s.Mr.toFixed(1)}`
   ).join('\n');
-  download(hdr + rows, 'LRS_Benkelman_Output.csv');
+  download(hdr + rows, `LRS_Benkelman_${baseName}.csv`);
 }
 
 function exportReport() {
   if (!segments.length) { toast('Run analysis first'); return; }
-  let txt = 'BENKELMAN BEAM ANALYSIS REPORT\nTCVN 8867:2011\n' + '='.repeat(60) + '\n\n';
-  txt += `Route: ${segments[0].routeId}\n`;
-  txt += `Generated: ${new Date().toISOString()}\n\n`;
-  txt += 'PARAMETERS\n----------\n';
   const cp = getRoadClassParams();
-  txt += `Road Class: ${cp.label} (${cp.std})  K=${cp.K}\n`;
-  txt += `Mr thresholds: Good ≥ ${MR_GOOD} MPa | Fair ≥ ${MR_FAIR} MPa | Weak < ${MR_FAIR} MPa\n`;
-  txt += `Km=${document.getElementById('Km').value}  Kt=${document.getElementById('Kt').value}  Kq=${document.getElementById('Kq').value}\n\n`;
+  const baseName = surveyFileName.replace(/\.[^.]+$/, ''); // strip extension
+  let txt = 'BENKELMAN BEAM ANALYSIS REPORT\nTCVN 8867:2011\n' + '='.repeat(60) + '\n\n';
+  txt += `Survey File  : ${surveyFileName}\n`;
+  txt += `Route        : ${segments[0].routeId}\n`;
+  txt += `Generated    : ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Phnom_Penh' })} (ICT)\n`;
+  txt += `Sections     : ${segments.length} homogeneous segments\n`;
+  txt += `Measurement  : ${results.length} points  (${results.filter(r => r.outlier).length} outliers removed)\n\n`;
+  txt += 'PARAMETERS\n' + '-'.repeat(60) + '\n';
+  txt += `Road Class   : ${cp.label} (${cp.std})  K = ${cp.K}\n`;
+  txt += `MR Thresholds: Good ≥ ${MR_GOOD} MPa | Fair ≥ ${MR_FAIR} MPa | Weak < ${MR_FAIR} MPa\n`;
+  txt += `Km (season)  : ${document.getElementById('Km').value}\n`;
+  txt += `Kt (temp)    : ${document.getElementById('Kt').value}\n`;
+  txt += `Kq (load)    : ${document.getElementById('Kq').value}\n\n`;
   txt += 'SEGMENT RESULTS\n' + '-'.repeat(60) + '\n';
-  txt += 'Seg  From          To            n    L.avg     L.seg     Mr     Rating\n';
+  txt += 'Seg  From          To            n    L.avg     L.seg     MR      Rating\n';
   segments.forEach((s, i) => {
     const r = rateMr(s.Mr);
-    txt += `${String(i + 1).padStart(3)}  ${s.fromLabel.trim().padEnd(12)}  ${s.toLabel.trim().padEnd(12)}  ${String(s.n).padStart(3)}  ${s.Lavg.toFixed(3).padStart(6)}  ${s.Lseg.toFixed(3).padStart(6)}  ${s.Mr.toFixed(1).padStart(6)}  ${r.label}\n`;
+    txt += `${String(i + 1).padStart(3)}  ${s.fromLabel.trim().padEnd(12)}  ${s.toLabel.trim().padEnd(12)}  ${String(s.n).padStart(3)}  ${s.Lavg.toFixed(3).padStart(6)}  ${s.Lseg.toFixed(3).padStart(6)}  ${s.Mr.toFixed(1).padStart(7)}  ${r.label}\n`;
   });
-  download(txt, 'Benkelman_Report.txt');
+  txt += '\n' + '='.repeat(60) + '\n';
+  txt += `Prepared by MPWT · GDPW · ATZ+ Partners\n`;
+  download(txt, `Benkelman_Report_${baseName}.txt`);
 }
 
 function download(content, filename) {
@@ -1271,6 +1281,7 @@ function downloadTemplate() {
 
 function loadSample() {
   rawRows = parseCSV(SAMPLE_CSV);
+  surveyFileName = 'sample_NR10_100km.csv';
   document.getElementById('fileName').textContent = 'sample_NR10_100km.csv (' + rawRows.length + ' pts)';
   toast('Sample loaded — ' + rawRows.length + ' measurement points');
 }
@@ -1294,6 +1305,7 @@ function loadFile(file) {
     const text = ev.target.result;
     rawRows = parseCSV(text);
     if (rawRows.length) {
+      surveyFileName = file.name;
       document.getElementById('fileName').textContent = file.name + ' (' + rawRows.length + ' pts)';
       if (!document.querySelector('#tab-overview.active')) switchTabById('overview');
     }
