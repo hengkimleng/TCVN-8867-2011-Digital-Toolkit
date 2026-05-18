@@ -982,9 +982,9 @@ const COLORS = ['#1ABC9C','#D4A017','#C0392B','#3498DB','#9B59B6','#E67E22','#27
 
 function renderStats() {
   const allMR = segments.map(s => s.Mr);
-  const minMR = Math.min(...allMr);
-  const maxMR = Math.max(...allMr);
-  const avgMR = allMr.reduce((a, b) => a + b, 0) / allMr.length;
+  const minMR = Math.min(...allMR);
+  const maxMR = Math.max(...allMR);
+  const avgMR = allMR.reduce((a, b) => a + b, 0) / allMR.length;
   const allLseg = segments.map(s => s.Lseg);
   const avgLseg = allLseg.reduce((a, b) => a + b, 0) / allLseg.length;
   const totalLen = (rawRows[rawRows.length - 1].chainageM - rawRows[0].chainageM) / 1000;
@@ -1000,11 +1000,11 @@ function renderStats() {
     </div>
     <div class="stat-card teal">
       <div class="s-label">Mean MR</div>
-      <div class="s-val">${avgMr.toFixed(0)}<span class="s-unit"> MPa</span></div>
+      <div class="s-val">${avgMR.toFixed(0)}<span class="s-unit"> MPa</span></div>
     </div>
     <div class="stat-card red">
       <div class="s-label">Min MR (Weakest)</div>
-      <div class="s-val">${minMr.toFixed(0)}<span class="s-unit"> MPa</span></div>
+      <div class="s-val">${minMR.toFixed(0)}<span class="s-unit"> MPa</span></div>
     </div>
   `;
 }
